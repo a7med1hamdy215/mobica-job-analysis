@@ -1626,11 +1626,12 @@ const SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbytwfoAC4QlmNgl9ZxQw
 // Internal/trusted only: leave AI_PROXY_URL empty and set AI_API_KEY to call
 //   Anthropic directly from the browser (key is visible in page source).
 // Inside the Claude.ai preview both can stay empty (auth is injected).
-var AI_PROXY_URL='';
+var AI_PROXY_URL='/api/generate';   // server-side proxy (Vercel function) — keeps the API key secret
 var AI_API_KEY='';
 var API_URL='https://api.anthropic.com/v1/messages';
 var API_MODEL='claude-sonnet-4-20250514';
 var AI_VERSION='2023-06-01';
+var AI_DEBUG=true;   // temporary: safe console logging for AI requests (no keys / no headers / no sensitive data)
 
 // ── LANGUAGE & TRANSLATIONS ──────────────────────────────────────────────
 var LANG='ar';
@@ -2372,9 +2373,11 @@ function callAPI(prompt,maxTok,onOK,onErr,onRetry){
   }
   function attempt(n){
     var req=buildReq();
+    if(AI_DEBUG) try{ console.log('[AI] attempt '+n+'/'+MAX_ATTEMPTS+' → POST '+req.url); }catch(e){}
     var settled=false;
     var timer=setTimeout(function(){ if(settled) return; settled=true; fail(0,'timeout'); },60000);
     function fail(status,msg){
+      if(AI_DEBUG) try{ console.warn('[AI] attempt '+n+' FAILED — status='+status+' msg='+(msg==null?'':msg)); }catch(e){}
       if(classify(status,msg)&&n<MAX_ATTEMPTS){
         var wait=Math.min(BASE*Math.pow(2,n-1),4000)+Math.floor(Math.random()*300);
         if(onRetry){ try{ onRetry(n+1,MAX_ATTEMPTS,wait); }catch(e){} }
@@ -2389,6 +2392,7 @@ function callAPI(prompt,maxTok,onOK,onErr,onRetry){
       return res.text().then(function(raw){ var data=null; try{ data=JSON.parse(raw); }catch(e){} return {status:res.status,ok:res.ok,data:data,raw:raw}; });
     }).then(function(r){
       if(settled) return; clearTimeout(timer); settled=true;
+      if(AI_DEBUG) try{ console.log('[AI] attempt '+n+' HTTP '+r.status+' | body: '+String(r.raw||'').replace(/\s+/g,' ').slice(0,200)); }catch(e){}
       if(!r.ok){ var m=(r.data&&r.data.error&&(r.data.error.message||r.data.error.type))||('HTTP '+r.status); return fail(r.status,m); }
       if(r.data&&(r.data.type==='error'||r.data.error)){
         var et=(r.data.error&&r.data.error.type)||''; var em=(r.data.error&&(r.data.error.message||r.data.error.type))||'service error';
