@@ -1619,18 +1619,19 @@ body.ltr .sig-note{border-right:none;border-left:3px solid var(--blue)}
 // ── CONFIG ───────────────────────────────────────────────────────────────
 const SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbytwfoAC4QlmNgl9ZxQw3RLDIsgydtgaX95ubO9KsXl2iobZcNN3xahBJDp_vD_2BkZ2A/exec';
 // ── AI ENDPOINT CONFIG ──────────────────────────────────────────────────
-// Generation (responsibilities / summary / skills) calls an AI service.
-// Production (recommended): set AI_PROXY_URL to your own backend that forwards
-//   requests to Anthropic and keeps the API key secret (see deployment notes).
-//   The proxy receives {prompt,max_tokens,model} and returns {text:"..."}.
-// Internal/trusted only: leave AI_PROXY_URL empty and set AI_API_KEY to call
-//   Anthropic directly from the browser (key is visible in page source).
-// Inside the Claude.ai preview both can stay empty (auth is injected).
+// Generation (responsibilities / summary / skills) calls an AI service THROUGH
+// a server-side proxy (the Vercel function at /api/generate) so the API key
+// stays secret on the server and is never exposed in this public file.
+// The proxy receives {prompt,max_tokens,model} and returns {text:"..."}.
+// Backend provider: Google Gemini (free / low-cost tier). The proxy reads the
+// key from the GEMINI_API_KEY environment variable on Vercel.
+// To change the model, edit API_MODEL below (e.g. 'gemini-2.5-flash' for higher
+// quality). The frontend only ever talks to the proxy — never to Gemini directly.
 var AI_PROXY_URL='/api/generate';   // server-side proxy (Vercel function) — keeps the API key secret
-var AI_API_KEY='';
-var API_URL='https://api.anthropic.com/v1/messages';
-var API_MODEL='claude-sonnet-4-20250514';
-var AI_VERSION='2023-06-01';
+var AI_API_KEY='';                  // legacy/unused in proxy mode — leave empty (never put a key here)
+var API_URL='/api/generate';        // legacy/unused in proxy mode
+var API_MODEL='gemini-2.0-flash';   // Google Gemini model used for generation (free tier)
+var AI_VERSION='';                  // legacy/unused in proxy mode
 var AI_DEBUG=true;   // temporary: safe console logging for AI requests (no keys / no headers / no sensitive data)
 
 // ── LANGUAGE & TRANSLATIONS ──────────────────────────────────────────────
