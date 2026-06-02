@@ -1967,12 +1967,21 @@ function generateResponsibilities(){
   },function(reason){
     aiInFlight=false;
     var isAr=(LANG==='ar');
-    var msg=aiIsBusy(reason)
-      ? ('\u26a0 '+aiBusyMsg(isAr)+(isAr?' \u064a\u0645\u0643\u0646\u0643 \u0625\u062f\u062e\u0627\u0644 \u0627\u0644\u0645\u0633\u0624\u0648\u0644\u064a\u0627\u062a \u064a\u062f\u0648\u064a\u0627\u064b \u0641\u064a \u0627\u0644\u062e\u0627\u0646\u0627\u062a \u0623\u062f\u0646\u0627\u0647.':' You can enter them manually in the boxes below.'))
-      : (isAr
-          ?'\u26a0 \u062a\u0639\u0630\u0651\u0631 \u062a\u0648\u0644\u064a\u062f \u0627\u0644\u0645\u0633\u0624\u0648\u0644\u064a\u0627\u062a. \u062a\u062d\u0642\u0642 \u0645\u0646 \u0627\u0644\u0627\u062a\u0635\u0627\u0644 \u0648\u0623\u0639\u062f \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629\u060c \u0623\u0648 \u0623\u062f\u062e\u0644 \u0627\u0644\u0645\u0633\u0624\u0648\u0644\u064a\u0627\u062a \u064a\u062f\u0648\u064a\u0627\u064b \u0641\u064a \u0627\u0644\u062e\u0627\u0646\u0627\u062a \u0623\u062f\u0646\u0627\u0647.'
-          :'\u26a0 Could not generate responsibilities automatically. Check your connection and try again, or enter them manually in the boxes below.');
-    el('suggList').innerHTML='<div class="sugg-placeholder">'+msg+'</div>';
+    // Accuracy over fallback: NEVER fabricate generic responsibilities. After the
+    // retries are exhausted, show the service-pressure notice and offer manual
+    // entry + an explicit Retry Generation action. Existing rd-* fields (already
+    // generated or typed by the user) are intentionally left untouched.
+    var msg=isAr
+      ?'\u062a\u0639\u0630\u0631 \u0627\u0644\u062a\u0648\u0644\u064a\u062f \u0627\u0644\u0622\u0646 \u0628\u0633\u0628\u0628 \u0636\u063a\u0637 \u0645\u0624\u0642\u062a \u0639\u0644\u0649 \u0627\u0644\u062e\u062f\u0645\u0629. \u064a\u0631\u062c\u0649 \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 \u0645\u0631\u0629 \u0623\u062e\u0631\u0649 \u0628\u0639\u062f \u0644\u062d\u0638\u0627\u062a\u060c \u0623\u0648 \u0625\u062f\u062e\u0627\u0644 \u0627\u0644\u0645\u0633\u0624\u0648\u0644\u064a\u0627\u062a \u064a\u062f\u0648\u064a\u064b\u0627.'
+      :'Generation is temporarily unavailable due to high service load. Please try again in a few moments, or enter the responsibilities manually.';
+    var retryLabel=isAr?'\u21bb \u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u062a\u0648\u0644\u064a\u062f':'\u21bb Retry Generation';
+    var box=el('suggList'); box.innerHTML='';
+    var ph=document.createElement('div'); ph.className='sugg-placeholder';
+    var line=document.createElement('div'); line.textContent=msg; line.style.lineHeight='1.7'; ph.appendChild(line);
+    var rbtn=document.createElement('button'); rbtn.type='button'; rbtn.className='sugg-generate-btn';
+    rbtn.style.marginTop='12px'; rbtn.textContent=retryLabel;
+    rbtn.addEventListener('click',generateResponsibilities);
+    ph.appendChild(rbtn); box.appendChild(ph);
     btn.disabled=false; btn.textContent=t('btn_gen_resp');
   },function(n,max,wait){
     // retry status indicator
@@ -2343,7 +2352,7 @@ function callAPI(prompt,maxTok,onOK,onErr,onRetry){
   // transient errors (Overloaded/HTTP 529, rate limits/429, 5xx, timeouts,
   // network blips). No AbortSignal is ever attached (sandbox postMessage clone
   // safety). A single onOK/onErr is guaranteed per call.
-  var MAX_RETRIES=3, BASE=800;
+  var MAX_ATTEMPTS=3, BASE=800;   // exactly 3 attempts, short backoff delay between
   function classify(status,msg){
     var m=(msg==null?'':msg).toString().toLowerCase();
     return (status===429||status===500||status===502||status===503||status===529)
@@ -2364,11 +2373,11 @@ function callAPI(prompt,maxTok,onOK,onErr,onRetry){
   function attempt(n){
     var req=buildReq();
     var settled=false;
-    var timer=setTimeout(function(){ if(settled) return; settled=true; fail(0,'timeout'); },30000);
+    var timer=setTimeout(function(){ if(settled) return; settled=true; fail(0,'timeout'); },60000);
     function fail(status,msg){
-      if(classify(status,msg)&&n<=MAX_RETRIES){
-        var wait=Math.min(BASE*Math.pow(2,n-1),8000)+Math.floor(Math.random()*400);
-        if(onRetry){ try{ onRetry(n,MAX_RETRIES,wait); }catch(e){} }
+      if(classify(status,msg)&&n<MAX_ATTEMPTS){
+        var wait=Math.min(BASE*Math.pow(2,n-1),4000)+Math.floor(Math.random()*300);
+        if(onRetry){ try{ onRetry(n+1,MAX_ATTEMPTS,wait); }catch(e){} }
         setTimeout(function(){ attempt(n+1); },wait);
       } else {
         var reason=classify(status,msg)?'busy':((msg==null?'network':msg).toString());
